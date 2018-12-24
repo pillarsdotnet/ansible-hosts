@@ -1,0 +1,40 @@
+---
+
+- name: 'Generate hosts entries.'
+  template:
+    dest: '{{ hosts_file }}'
+    force: true
+    group: 'root'
+    mode: 0444
+    newline_sequence: '{{ "\r\n" if ansible_os_family == "windows" else "\n" }}'
+    owner: 'root'
+    src: 'hosts.j2'
+- name: 'Gather tags.'
+  block:
+    - name: 'Get Name tag.'
+      block:
+        - name: 'Check hosts_domain_re'
+          block:
+            - name: 'Set hostname'
+              hostname:
+                name: '{{ hostname }}'
+            - name: 'Write hostname to /etc/hostname.'
+              failed_when: false
+              replace:
+                path: '/etc/hostname'
+                regexp: '\A[\s\S]*\Z'
+                replace: '{{ hostname }}'
+            - name: 'Update hostname in /etc/sysconfig/network'
+              failed_when: false
+              lineinfile:
+                line: 'HOSTNAME={{ hostname }}'
+                path: '/etc/sysconfig/network'
+                regexp: '^HOSTNAME='
+          vars:
+            hostname: '{{ name_tag.split(".")|first }}'
+          when: 'name_tag|regex_search(hosts_domain_re) is not none'
+      vars:
+        name_tag: '{{ tags.Name }}'
+      when: '"Name" in tags'
+  vars:
+    tags: '{{ hostvars[inventory_hostname].tags }}'

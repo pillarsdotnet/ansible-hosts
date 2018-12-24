@@ -1,0 +1,38 @@
+{{ ansible_managed|comment }}
+
+# Default Hosts
+{{ hosts_defaults }}
+# Custom Hosts
+{%  set ns=namespace() -%}
+{%- set ns.hosts={} -%}
+{%- set ns.prefix=10000000000 -%}
+{%- for host in groups.all -%}
+{%-   for hostfield in hosts_fields|dictsort -%}
+{%-     if hostvars[host][hostfield.0] is defined -%}
+{%-       set hostaddr = hostvars[host][hostfield.0] -%}
+{%-       set hostnum = hostaddr|ipaddr('int') + ns.prefix -%}
+{%-       for hostnamefield in [hostfield.1]|flatten|unique -%}
+{%-         if hostvars[host][hostnamefield] is defined -%}
+{%-           set ns.hosts = ns.hosts|combine({hostnum: ns.hosts[hostnum]
+                |default([])|union([hostvars[host][hostnamefield]])}) -%}
+{%-         endif -%}
+{%-       endfor -%}
+{%-       set tags = hostvars[host].tags|default({}) -%}
+{%-       if 'Name' in tags -%}
+{%-         set ns.hosts = ns.hosts|combine({hostnum: [tags.Name]
+              |union(ns.hosts[hostnum])|union([tags.Name
+	      |regex_replace('[.].*$','')])}) -%}
+{%-       endif -%}
+{%-       set ns.hosts = ns.hosts|combine({hostnum: ns.hosts[hostnum]
+            |union(['#'])}) -%}
+{%-       for tag in tags|dictsort|rejectattr(0,'equalto','Name') -%}
+{%-         set ns.hosts = ns.hosts|combine({hostnum: ns.hosts[hostnum]
+              |union([tag|join('=')])}) -%}
+{%-       endfor -%}
+{%-     endif -%}
+{%-   endfor -%}
+{%- endfor -%}
+{%- for host in ns.hosts|dictsort -%}
+{%-   set hostaddr = host.0 - ns.prefix %}
+{{ hostaddr|ipaddr('address') }} {{ host.1|unique|join(' ') }}
+{%  endfor -%}
